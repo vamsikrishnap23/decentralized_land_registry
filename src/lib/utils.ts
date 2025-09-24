@@ -1,6 +1,6 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
+export const formatAddress = (addr: string | null): string => {
+  return addr
+    ? `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`
+    : "";
+};
