@@ -439,7 +439,135 @@ export default function HomePage() {
   // Contract read state
   const [totalParcels, setTotalParcels] = useState<number | null>(null);
   const [isContractLoading, setIsContractLoading] = useState<boolean>(false);
-  const [parcels, setParcels] = useState<any[]>([]);
+  interface Parcel {
+    id: string;
+    owner: string;
+    coordsHash: string;
+    metadataURI: string;
+    areaSqm: string;
+    forSale: boolean;
+    price: string | null;
+    rawPrice: string | null;
+  }
+  const [parcels, setParcels] = useState<Parcel[]>([]);
+  const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
+  const [actionStatus, setActionStatus] = useState<string>("");
+  const [listPrice, setListPrice] = useState<string>("");
+  const [metadataEdit, setMetadataEdit] = useState<string>("");
+  const [coordsSearch, setCoordsSearch] = useState<string>("");
+  const [coordsSearchResult, setCoordsSearchResult] = useState<Parcel | null>(
+    null
+  );
+  // List parcel for sale
+  const handleListForSale = async (parcelId: string) => {
+    if (!window.ethereum || !listPrice) return;
+    setActionStatus("Listing for sale...");
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new Contract(contractAddress, contractABI, signer);
+      const tx = await contract.listParcelForSale(parcelId, listPrice);
+      setActionStatus("Waiting for confirmation...");
+      await tx.wait();
+      setActionStatus("Parcel listed for sale!");
+      fetchTotalParcels();
+    } catch (err: any) {
+      setActionStatus("Error: " + (err?.reason || err?.message || "Failed"));
+    } finally {
+      setTimeout(() => setActionStatus(""), 4000);
+    }
+  };
+
+  // Cancel sale
+  const handleCancelSale = async (parcelId: string) => {
+    if (!window.ethereum) return;
+    setActionStatus("Cancelling sale...");
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new Contract(contractAddress, contractABI, signer);
+      const tx = await contract.cancelSale(parcelId);
+      setActionStatus("Waiting for confirmation...");
+      await tx.wait();
+      setActionStatus("Sale cancelled!");
+      fetchTotalParcels();
+    } catch (err: any) {
+      setActionStatus("Error: " + (err?.reason || err?.message || "Failed"));
+    } finally {
+      setTimeout(() => setActionStatus(""), 4000);
+    }
+  };
+
+  // Buy parcel
+  const handleBuyParcel = async (parcel: Parcel) => {
+    if (!window.ethereum || !parcel.rawPrice) return;
+    setActionStatus("Buying parcel...");
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new Contract(contractAddress, contractABI, signer);
+      const tx = await contract.buyParcel(parcel.id, {
+        value: parcel.rawPrice,
+      });
+      setActionStatus("Waiting for confirmation...");
+      await tx.wait();
+      setActionStatus("Parcel bought!");
+      fetchTotalParcels();
+    } catch (err: any) {
+      setActionStatus("Error: " + (err?.reason || err?.message || "Failed"));
+    } finally {
+      setTimeout(() => setActionStatus(""), 4000);
+    }
+  };
+
+  // Update metadata URI
+  const handleUpdateMetadata = async (parcelId: string) => {
+    if (!window.ethereum || !metadataEdit) return;
+    setActionStatus("Updating metadata URI...");
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new Contract(contractAddress, contractABI, signer);
+      const tx = await contract.updateMetadataURI(parcelId, metadataEdit);
+      setActionStatus("Waiting for confirmation...");
+      await tx.wait();
+      setActionStatus("Metadata updated!");
+      fetchTotalParcels();
+    } catch (err: any) {
+      setActionStatus("Error: " + (err?.reason || err?.message || "Failed"));
+    } finally {
+      setTimeout(() => setActionStatus(""), 4000);
+    }
+  };
+
+  // Search by coordsHash
+  const handleCoordsSearch = async () => {
+    setCoordsSearchResult(null);
+    setActionStatus("");
+    if (!coordsSearch || !window.ethereum) return;
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const contract = new Contract(contractAddress, contractABI, provider);
+      const id = await contract.getParcelIdByCoords(coordsSearch);
+      if (id && id.toString() !== "0") {
+        const parcel = await contract.getParcel(id);
+        setCoordsSearchResult({
+          id: parcel.id.toString(),
+          owner: parcel.owner,
+          coordsHash: parcel.coordsHash,
+          metadataURI: parcel.metadataURI,
+          areaSqm: parcel.areaSqm.toString(),
+          forSale: parcel.forSale,
+          price: parcel.price ? ethers.formatEther(parcel.price) : null,
+          rawPrice: parcel.price ? parcel.price.toString() : null,
+        });
+      } else {
+        setActionStatus("No parcel found for this coords hash.");
+      }
+    } catch (err: any) {
+      setActionStatus("Error: " + (err?.reason || err?.message || "Failed"));
+    }
+  };
   const [isParcelsLoading, setIsParcelsLoading] = useState<boolean>(false);
 
   // Registration form state
@@ -474,7 +602,7 @@ export default function HomePage() {
     try {
       const provider = new BrowserProvider(window.ethereum);
       const contract = new Contract(contractAddress, contractABI, provider);
-      const fetched: any[] = [];
+      const fetched: Parcel[] = [];
       for (let i = 1; i <= count; i++) {
         try {
           const parcel = await contract.getParcel(i);
@@ -486,6 +614,7 @@ export default function HomePage() {
             areaSqm: parcel.areaSqm.toString(),
             forSale: parcel.forSale,
             price: parcel.price ? ethers.formatEther(parcel.price) : null,
+            rawPrice: parcel.price ? parcel.price.toString() : null,
           });
         } catch (e) {
           // skip if not found
@@ -733,7 +862,44 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* All Parcels List */}
+      {/* Search by Coords Hash */}
+      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-6">
+        <h2 className="text-lg font-bold mb-2">Search Parcel by Coords Hash</h2>
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Enter coords hash (0x...)"
+            value={coordsSearch}
+            onChange={(e) => setCoordsSearch(e.target.value)}
+            className="w-full bg-gray-800 border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          <button
+            onClick={handleCoordsSearch}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md px-4 py-2"
+          >
+            Search
+          </button>
+        </div>
+        {coordsSearchResult && (
+          <div className="mt-4">
+            <div className="text-sm text-gray-400 mb-1">Parcel found:</div>
+            <div className="bg-gray-800 rounded p-3">
+              <span className="font-mono text-indigo-400">
+                ID: {coordsSearchResult.id}
+              </span>{" "}
+              |{" "}
+              <span className="font-mono text-blue-300">
+                Owner: {coordsSearchResult.owner}
+              </span>
+            </div>
+          </div>
+        )}
+        {actionStatus && (
+          <div className="mt-2 text-red-400 text-sm">{actionStatus}</div>
+        )}
+      </div>
+
+      {/* All Parcels List as Table/List */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
         <h2 className="text-2xl font-bold mb-4 text-center">
           All Registered Parcels
@@ -745,60 +911,226 @@ export default function HomePage() {
             No parcels registered yet.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {parcels.map((parcel) => (
-              <div
-                key={parcel.id}
-                className={`rounded-xl border-2 shadow-lg p-5 flex flex-col gap-2 transition-all ${
-                  parcel.forSale
-                    ? "border-green-500 bg-green-950/30"
-                    : "border-gray-700 bg-gray-950/40"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">ID: {parcel.id}</span>
-                  {parcel.forSale && (
-                    <span className="px-2 py-1 bg-green-700 text-xs rounded text-white font-semibold">
-                      FOR SALE
-                    </span>
-                  )}
-                </div>
-                <div className="font-mono text-sm text-indigo-300 break-all">
-                  Owner: {formatAddress(parcel.owner)}
-                </div>
-                <div className="text-sm text-gray-400">
-                  Area:{" "}
-                  <span className="font-semibold text-white">
-                    {parcel.areaSqm} sqm
-                  </span>
-                </div>
-                <div className="text-sm text-gray-400">
-                  Coords Hash:{" "}
-                  <span className="font-mono text-xs">{parcel.coordsHash}</span>
-                </div>
-                {parcel.metadataURI && (
-                  <div className="text-xs text-blue-400 truncate">
-                    Metadata:{" "}
-                    <a
-                      href={parcel.metadataURI}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                    >
-                      {parcel.metadataURI}
-                    </a>
-                  </div>
-                )}
-                {parcel.forSale && (
-                  <div className="text-sm text-green-400 font-bold">
-                    Price: {parcel.price} ETH
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-700">
+              <thead>
+                <tr className="bg-gray-800">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
+                    ID
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
+                    Owner
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
+                    Coords Hash
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
+                    For Sale
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
+                    Price (wei)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {parcels.map((parcel) => (
+                  <tr
+                    key={parcel.id}
+                    className={`hover:bg-gray-800 cursor-pointer transition-all ${
+                      selectedParcel?.id === parcel.id ? "bg-indigo-950/40" : ""
+                    }`}
+                    onClick={() => setSelectedParcel(parcel)}
+                  >
+                    <td className="px-3 py-2 text-sm text-indigo-300 font-mono">
+                      {parcel.id}
+                    </td>
+                    <td className="px-3 py-2 text-sm font-mono text-blue-200">
+                      {formatAddress(parcel.owner)}
+                    </td>
+                    <td className="px-3 py-2 text-xs font-mono text-gray-400 truncate max-w-[120px]">
+                      {parcel.coordsHash}
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      {parcel.forSale ? (
+                        <span className="text-green-400 font-bold">Yes</span>
+                      ) : (
+                        <span className="text-gray-400">No</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      {parcel.forSale && parcel.rawPrice
+                        ? parcel.rawPrice
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {/* Parcel Details Panel with Actions */}
+      {selectedParcel && (
+        <div className="bg-gray-900 border border-indigo-700 rounded-xl p-6 mt-4 max-w-2xl mx-auto shadow-lg">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-xl font-bold text-indigo-300">
+              Parcel Details
+            </h3>
+            <button
+              onClick={() => setSelectedParcel(null)}
+              className="text-gray-400 hover:text-red-400 text-lg"
+            >
+              &times;
+            </button>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <span className="font-semibold text-gray-300">ID:</span>{" "}
+              <span className="font-mono text-indigo-400">
+                {selectedParcel.id}
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold text-gray-300">Owner:</span>{" "}
+              <span className="font-mono text-blue-300">
+                {selectedParcel.owner}
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold text-gray-300">Coords Hash:</span>{" "}
+              <span className="font-mono text-xs">
+                {selectedParcel.coordsHash}
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold text-gray-300">Area (sqm):</span>{" "}
+              <span className="text-white">{selectedParcel.areaSqm}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-gray-300">For Sale:</span>{" "}
+              {selectedParcel.forSale ? (
+                <span className="text-green-400 font-bold">Yes</span>
+              ) : (
+                <span className="text-gray-400">No</span>
+              )}
+            </div>
+            <div>
+              <span className="font-semibold text-gray-300">Price (wei):</span>{" "}
+              {selectedParcel.forSale && selectedParcel.rawPrice ? (
+                <span className="text-green-300 font-mono">
+                  {selectedParcel.rawPrice}
+                </span>
+              ) : (
+                <span className="text-gray-400">-</span>
+              )}
+            </div>
+            <div>
+              <span className="font-semibold text-gray-300">Price (ETH):</span>{" "}
+              {selectedParcel.forSale && selectedParcel.price ? (
+                <span className="text-green-300 font-mono">
+                  {selectedParcel.price}
+                </span>
+              ) : (
+                <span className="text-gray-400">-</span>
+              )}
+            </div>
+            {selectedParcel.metadataURI && (
+              <div>
+                <span className="font-semibold text-gray-300">
+                  Metadata URI:
+                </span>{" "}
+                <a
+                  href={selectedParcel.metadataURI}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 underline break-all"
+                >
+                  {selectedParcel.metadataURI}
+                </a>
+              </div>
+            )}
+          </div>
+          {/* Action Buttons */}
+          <div className="mt-4 flex flex-wrap gap-3 items-center">
+            {/* List for Sale (if owner and not for sale) */}
+            {account?.toLowerCase() === selectedParcel.owner.toLowerCase() &&
+              !selectedParcel.forSale && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleListForSale(selectedParcel.id);
+                  }}
+                  className="flex gap-2 items-center"
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Price in wei"
+                    value={listPrice}
+                    onChange={(e) => setListPrice(e.target.value)}
+                    className="bg-gray-800 border-gray-600 rounded-md p-2 text-white w-32"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    className="bg-green-700 hover:bg-green-800 text-white rounded-md px-3 py-2 font-medium"
+                  >
+                    List for Sale
+                  </button>
+                </form>
+              )}
+            {/* Cancel Sale (if owner and for sale) */}
+            {account?.toLowerCase() === selectedParcel.owner.toLowerCase() &&
+              selectedParcel.forSale && (
+                <button
+                  onClick={() => handleCancelSale(selectedParcel.id)}
+                  className="bg-yellow-700 hover:bg-yellow-800 text-white rounded-md px-3 py-2 font-medium"
+                >
+                  Cancel Sale
+                </button>
+              )}
+            {/* Buy (if not owner and for sale) */}
+            {account?.toLowerCase() !== selectedParcel.owner.toLowerCase() &&
+              selectedParcel.forSale && (
+                <button
+                  onClick={() => handleBuyParcel(selectedParcel)}
+                  className="bg-blue-700 hover:bg-blue-800 text-white rounded-md px-3 py-2 font-medium"
+                >
+                  Buy Parcel
+                </button>
+              )}
+            {/* Update Metadata (if owner) */}
+            {account?.toLowerCase() === selectedParcel.owner.toLowerCase() && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleUpdateMetadata(selectedParcel.id);
+                }}
+                className="flex gap-2 items-center"
+              >
+                <input
+                  type="text"
+                  placeholder="New Metadata URI"
+                  value={metadataEdit}
+                  onChange={(e) => setMetadataEdit(e.target.value)}
+                  className="bg-gray-800 border-gray-600 rounded-md p-2 text-white w-48"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="bg-indigo-700 hover:bg-indigo-800 text-white rounded-md px-3 py-2 font-medium"
+                >
+                  Update Metadata
+                </button>
+              </form>
+            )}
+          </div>
+          {actionStatus && (
+            <div className="mt-3 text-indigo-300 text-sm">{actionStatus}</div>
+          )}
+        </div>
+      )}
 
       {/* Registration and Transfer Forms */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
