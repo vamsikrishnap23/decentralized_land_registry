@@ -84,7 +84,25 @@ export default function HomePage() {
 
   // IPFS Part
   const [selectedFileEdit, setSelectedFileEdit] = useState<File | null>(null);
-const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
+
+// const handleFileUploadEdit = async () => {
+//   if (!selectedFileEdit) {
+//     alert("Please select a file first!");
+//     return;
+//   }
+//   try {
+//     setIsUploading(true);
+//     const url = await uploadToIPFS(selectedFileEdit); // from ipfs.tsx
+//     setMetadataEdit(url); // auto-populate
+//   } catch (err) {
+//     console.error(err);
+//     alert("Upload failed.");
+//   } finally {
+//     setIsUploading(false);
+//   }
+// };
 
 const handleFileUploadEdit = async () => {
   if (!selectedFileEdit) {
@@ -93,10 +111,15 @@ const handleFileUploadEdit = async () => {
   }
   try {
     setIsUploading(true);
-    const url = await uploadToIPFS(selectedFileEdit); // from ipfs.tsx
-    setMetadataEdit(url); // auto-populate
+
+    // ⬅️ Call the function from ipfs.tsx
+    const url = await uploadToIPFS(selectedFileEdit);
+
+    // Autofill the metadata field with the returned URL
+    setMetadataEdit(url);
+
   } catch (err) {
-    console.error(err);
+    console.error("File upload failed:", err);
     alert("Upload failed.");
   } finally {
     setIsUploading(false);
@@ -755,34 +778,17 @@ const handleFileUploadEdit = async () => {
                   }}
                   className="flex gap-2 items-center p-3 bg-gray-800 rounded-md mt-2"
                 >
-                  {/* <input
+                  <input
                     type="text"
                     placeholder="New Metadata URI"
                     value={metadataEdit}
                     onChange={(e) => setMetadataEdit(e.target.value)}
                     className="bg-gray-700 border-gray-600 rounded-md p-2 text-white w-48"
                     required
-                  /> */}
+                  />
 
-                  <div className="flex flex-col gap-2">
-  {/* File Upload Button */}
-  <div className="flex gap-2 items-center">
-    <input
-      type="file"
-      onChange={(e) => e.target.files && setSelectedFileEdit(e.target.files[0])}
-      className="text-white"
-    />
-        <button
-          type="button"
-          onClick={handleFileUploadEdit} // calls IPFS upload
-          disabled={isUploading}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-3 py-2"
-        >
-          {isUploading ? "Uploading..." : "Upload to IPFS"}
-        </button>
-      </div>
-
-      {/* Metadata URI Input (auto-filled after upload) */}
+      {/* <div className="flex flex-col gap-2">
+      
       <input
         type="text"
         placeholder="New Metadata URI"
@@ -791,7 +797,7 @@ const handleFileUploadEdit = async () => {
         className="bg-gray-700 border-gray-600 rounded-md p-2 text-white w-48"
         required
       />
-    </div>
+    </div> */}
 
 
                   <button
@@ -847,6 +853,21 @@ const handleFileUploadEdit = async () => {
                 required
               />
             </div>
+            <div className="flex gap-2 items-center">
+                  <input
+                    type="file"
+                    onChange={(e) => e.target.files && setSelectedFileEdit(e.target.files[0])}
+                    className="text-white"
+                  />
+                      <button
+                        type="button"
+                        onClick={handleFileUploadEdit} // calls IPFS upload
+                        // disabled={isUploading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-3 py-2"
+                      >
+                        {isUploading ? "Uploading..." : "Upload to IPFS"}
+                      </button>
+                    </div>
             <div>
               <label
                 htmlFor="metadata"
@@ -857,7 +878,7 @@ const handleFileUploadEdit = async () => {
               <input
                 type="text"
                 id="metadata"
-                value={metadataURI}
+                value={metadataEdit}
                 onChange={(e) => setMetadataURI(e.target.value)}
                 className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
               />
