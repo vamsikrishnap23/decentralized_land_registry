@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-// import { contractAddress, contractABI } from "./contractDetails";
 import { contractAddress, contractABI } from "./lib/contractDetails";
-// import { formatAddress } from "./utils";
+import BlockVisualizer from "./BlockVisualizer";
 import { formatAddress } from "./lib/utils";
-// import ipfs code
-import { uploadToIPFS } from "./utils/ipfs"; 
-
+import { uploadToIPFS } from "./utils/ipfs";
 
 // --- Ethers.js Reference ---
 import {
@@ -85,47 +82,27 @@ export default function HomePage() {
   // IPFS Part
   const [selectedFileEdit, setSelectedFileEdit] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  
 
-// const handleFileUploadEdit = async () => {
-//   if (!selectedFileEdit) {
-//     alert("Please select a file first!");
-//     return;
-//   }
-//   try {
-//     setIsUploading(true);
-//     const url = await uploadToIPFS(selectedFileEdit); // from ipfs.tsx
-//     setMetadataEdit(url); // auto-populate
-//   } catch (err) {
-//     console.error(err);
-//     alert("Upload failed.");
-//   } finally {
-//     setIsUploading(false);
-//   }
-// };
+  const handleFileUploadEdit = async () => {
+    if (!selectedFileEdit) {
+      alert("Please select a file first!");
+      return;
+    }
+    try {
+      setIsUploading(true);
 
-const handleFileUploadEdit = async () => {
-  if (!selectedFileEdit) {
-    alert("Please select a file first!");
-    return;
-  }
-  try {
-    setIsUploading(true);
+      // ⬅️ Call the function from ipfs.tsx
+      const url = await uploadToIPFS(selectedFileEdit);
 
-    // ⬅️ Call the function from ipfs.tsx
-    const url = await uploadToIPFS(selectedFileEdit);
-
-    // Autofill the metadata field with the returned URL
-    setMetadataEdit(url);
-
-  } catch (err) {
-    console.error("File upload failed:", err);
-    alert("Upload failed.");
-  } finally {
-    setIsUploading(false);
-  }
-};
-
+      // Autofill the metadata field with the returned URL
+      setMetadataEdit(url);
+    } catch (err) {
+      console.error("File upload failed:", err);
+      alert("Upload failed.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // --- Logic and Contract Functions ---
 
@@ -787,19 +764,6 @@ const handleFileUploadEdit = async () => {
                     required
                   />
 
-      {/* <div className="flex flex-col gap-2">
-      
-      <input
-        type="text"
-        placeholder="New Metadata URI"
-        value={metadataEdit}
-        onChange={(e) => setMetadataEdit(e.target.value)}
-        className="bg-gray-700 border-gray-600 rounded-md p-2 text-white w-48"
-        required
-      />
-    </div> */}
-
-
                   <button
                     type="submit"
                     className="bg-purple-700 hover:bg-purple-800 text-white rounded-md px-3 py-2 font-medium"
@@ -815,6 +779,7 @@ const handleFileUploadEdit = async () => {
           </div>
         </div>
       )}
+      <BlockVisualizer />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-4">
@@ -854,20 +819,22 @@ const handleFileUploadEdit = async () => {
               />
             </div>
             <div className="flex gap-2 items-center">
-                  <input
-                    type="file"
-                    onChange={(e) => e.target.files && setSelectedFileEdit(e.target.files[0])}
-                    className="text-white"
-                  />
-                      <button
-                        type="button"
-                        onClick={handleFileUploadEdit} // calls IPFS upload
-                        // disabled={isUploading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-3 py-2"
-                      >
-                        {isUploading ? "Uploading..." : "Upload to IPFS"}
-                      </button>
-                    </div>
+              <input
+                type="file"
+                onChange={(e) =>
+                  e.target.files && setSelectedFileEdit(e.target.files[0])
+                }
+                className="text-white"
+              />
+              <button
+                type="button"
+                onClick={handleFileUploadEdit} // calls IPFS upload
+                // disabled={isUploading}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-3 py-2"
+              >
+                {isUploading ? "Uploading..." : "Upload to IPFS"}
+              </button>
+            </div>
             <div>
               <label
                 htmlFor="metadata"
