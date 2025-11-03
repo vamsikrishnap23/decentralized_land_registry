@@ -11,6 +11,7 @@ import {
   keccak256,
   toUtf8Bytes,
   ethers,
+  TransactionReceipt,
 } from "ethers";
 
 // --- TypeScript Interfaces ---
@@ -82,7 +83,33 @@ export default function HomePage() {
   // IPFS Part
   const [selectedFileEdit, setSelectedFileEdit] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [relevantBlockNumbers, setRelevantBlockNumbers] = useState<number[]>(
+    () => {
+      // Try to get saved blocks from localStorage when the component first loads
+      const savedBlocks = localStorage.getItem("parcelAppBlockNumbers");
+      if (savedBlocks) {
+        // If we found saved blocks, parse them back into an array
+        return JSON.parse(savedBlocks);
+      }
+      // Otherwise, start with an empty array
+      return [];
+    }
+  );
 
+  // This useEffect hook saves the block numbers to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(
+      "parcelAppBlockNumbers",
+      JSON.stringify(relevantBlockNumbers)
+    );
+  }, [relevantBlockNumbers]);
+
+  const addRelevantBlock = (blockNumber: number) => {
+    setRelevantBlockNumbers((prev) => {
+      const newSet = new Set([blockNumber, ...prev]);
+      return Array.from(newSet).sort((a, b) => b - a); // Keep it sorted, newest first
+    });
+  };
   const handleFileUploadEdit = async () => {
     if (!selectedFileEdit) {
       alert("Please select a file first!");
@@ -112,6 +139,7 @@ export default function HomePage() {
     setTotalParcels(null);
     setParcels([]);
     setError("");
+    setRelevantBlockNumbers([]);
   }, []);
 
   const fetchAllParcels = useCallback(async (count: number) => {
@@ -217,7 +245,10 @@ export default function HomePage() {
         metadataURI,
         area
       );
-      await tx.wait();
+      const receipt: TransactionReceipt | null = await tx.wait();
+      if (receipt?.blockNumber) {
+        addRelevantBlock(receipt.blockNumber);
+      }
       setRegisterTxStatus("Parcel registered successfully! 🎉");
       setOwnerAddress(account || "");
       setCoordinates("");
@@ -251,7 +282,10 @@ export default function HomePage() {
         transferParcelId,
         transferToAddress
       );
-      await tx.wait();
+      const receipt: TransactionReceipt | null = await tx.wait();
+      if (receipt?.blockNumber) {
+        addRelevantBlock(receipt.blockNumber);
+      }
       setTransferTxStatus("Parcel transferred successfully! 🎉");
       setTransferParcelId("");
       setTransferToAddress("");
@@ -277,7 +311,10 @@ export default function HomePage() {
       const contract = new Contract(contractAddress, contractABI, signer);
       const priceInWei = ethers.parseEther(listPrice); // Convert ETH to Wei
       const tx = await contract.listParcelForSale(parcelId, priceInWei);
-      await tx.wait();
+      const receipt: TransactionReceipt | null = await tx.wait();
+      if (receipt?.blockNumber) {
+        addRelevantBlock(receipt.blockNumber);
+      }
       setActionStatus("Parcel listed for sale!");
       fetchTotalParcels();
       setSelectedParcel(null);
@@ -301,7 +338,10 @@ export default function HomePage() {
       const signer = await provider.getSigner();
       const contract = new Contract(contractAddress, contractABI, signer);
       const tx = await contract.cancelSale(parcelId);
-      await tx.wait();
+      const receipt: TransactionReceipt | null = await tx.wait();
+      if (receipt?.blockNumber) {
+        addRelevantBlock(receipt.blockNumber);
+      }
       setActionStatus("Sale cancelled!");
       fetchTotalParcels();
       setSelectedParcel(null);
@@ -326,7 +366,10 @@ export default function HomePage() {
       const tx = await contract.buyParcel(parcel.id, {
         value: parcel.rawPrice,
       });
-      await tx.wait();
+      const receipt: TransactionReceipt | null = await tx.wait();
+      if (receipt?.blockNumber) {
+        addRelevantBlock(receipt.blockNumber);
+      }
       setActionStatus("Parcel bought successfully!");
       fetchTotalParcels();
       setSelectedParcel(null);
@@ -349,7 +392,10 @@ export default function HomePage() {
       const signer = await provider.getSigner();
       const contract = new Contract(contractAddress, contractABI, signer);
       const tx = await contract.updateMetadataURI(parcelId, metadataEdit);
-      await tx.wait();
+      const receipt: TransactionReceipt | null = await tx.wait();
+      if (receipt?.blockNumber) {
+        addRelevantBlock(receipt.blockNumber);
+      }
       setActionStatus("Metadata updated!");
       fetchTotalParcels();
       setMetadataEdit("");
@@ -418,6 +464,10 @@ export default function HomePage() {
       ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
     };
   }, [connectWallet, disconnectWallet]);
+
+  useEffect(() => {
+    if (account) fetchTotalParcels();
+  }, [account, fetchTotalParcels]);
 
   // --- UI ---
 
@@ -779,7 +829,7 @@ export default function HomePage() {
           </div>
         </div>
       )}
-      <BlockVisualizer />
+      <BlockVisualizer blockNumbers={relevantBlockNumbers} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-4">
