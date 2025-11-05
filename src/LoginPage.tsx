@@ -73,6 +73,8 @@ export default function LoginPage({ onLogin, heroImageUrl }: LoginPageProps) {
   };
 
   const bgClasses = useMemo(() => gradients.join(" "), []);
+  // default to hero image in public folder when no heroImageUrl prop is provided
+  const imageSrc = heroImageUrl ?? "/hero.png";
 
   return (
     <div
@@ -89,28 +91,13 @@ export default function LoginPage({ onLogin, heroImageUrl }: LoginPageProps) {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="hidden overflow-hidden rounded-3xl border border-zinc-200/60 bg-white/40 shadow-xl backdrop-blur md:block lg:w-[55%] dark:border-white/10 dark:bg-white/[0.03]"
         >
-          {heroImageUrl ? (
-            <div
-              className="h-[620px] w-full bg-cover bg-center"
-              style={{ backgroundImage: `url(${heroImageUrl})` }}
-            />
-          ) : (
-            <div className="relative grid h-[620px] w-full place-items-center overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(600px_200px_at_70%_10%,rgba(99,102,241,0.2),transparent),radial-gradient(500px_200px_at_20%_80%,rgba(34,197,94,0.16),transparent)]" />
-              <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,rgba(0,0,0,0.9),transparent_75%)]" />
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="rounded-2xl border border-dashed border-zinc-400/50 p-8 dark:border-zinc-500/40">
-                  <span className="text-sm uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Image holder
-                  </span>
-                </div>
-                <p className="max-w-[38ch] text-sm text-zinc-600 dark:text-zinc-400">
-                  Add a striking visual here later (dashboard shot, brand
-                  artwork, city skyline—your world, your rules).
-                </p>
-              </div>
-            </div>
-          )}
+          {/* show the hero image (from prop if provided, otherwise /hero.png in public/) */}
+          <div
+            className="h-[620px] w-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${imageSrc})` }}
+            role="img"
+            aria-label="Hero image"
+          />
         </motion.div>
 
         {/* Right: Auth card */}
@@ -204,12 +191,6 @@ export default function LoginPage({ onLogin, heroImageUrl }: LoginPageProps) {
                 </a>
               )}
             </div>
-
-            {/* Tiny footnote */}
-            <p className="mt-6 text-center text-xs text-zinc-500 dark:text-zinc-400">
-              By connecting, you agree to the Terms and acknowledge the Privacy
-              Policy.
-            </p>
           </Card>
         </motion.div>
       </div>

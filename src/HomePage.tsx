@@ -126,7 +126,8 @@ export default function HomePage({
       setMetadataEdit(url);
     } catch (err) {
       console.error("File upload failed:", err);
-      alert("Upload failed.");
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Upload failed: ${msg}`);
     } finally {
       setIsUploading(false);
     }
@@ -246,7 +247,7 @@ export default function HomePage({
       if (receipt?.blockNumber) {
         addRelevantBlock(receipt.blockNumber);
       }
-      setRegisterTxStatus("Parcel registered successfully! 🎉");
+      setRegisterTxStatus("Parcel registered successfully!");
       setOwnerAddress(account || "");
       setCoordinates("");
       setMetadataURI("");
@@ -283,7 +284,7 @@ export default function HomePage({
       if (receipt?.blockNumber) {
         addRelevantBlock(receipt.blockNumber);
       }
-      setTransferTxStatus("Parcel transferred successfully! 🎉");
+      setTransferTxStatus("Parcel transferred successfully!");
       setTransferParcelId("");
       setTransferToAddress("");
       fetchTotalParcels();

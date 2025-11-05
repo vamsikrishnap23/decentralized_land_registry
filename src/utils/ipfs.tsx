@@ -1,53 +1,41 @@
-// // src/utils/ipfs.tsx
-// import { create } from "ipfs-http-client";
+// Small, robust IPFS upload helper — LOCAL NODE ONLY
+// Uses your local Kubo (go-ipfs) HTTP API at 127.0.0.1:5001 (configurable).
+// Returns a URL from your local gateway (default 127.0.0.1:8080).
 
-// // Connect to *local* IPFS daemon (make sure `ipfs daemon` is running)
-// const client = create({ url: "http://127.0.0.1:5001/api/v0" });
+const env = import.meta.env as Record<string, string | undefined>;
 
-// /**
-//  * Upload a file to local IPFS node and return the gateway URL
-//  */
-// export const uploadToIPFS = async (file: File): Promise<string> => {
-//   try {
-//     const added = await client.add(file);
-//     // Local gateway URL
-//     return `http://127.0.0.1:8080/ipfs/${added.path}`;
-//   } catch (err) {
-//     console.error("IPFS upload error:", err);
-//     throw err;
-//   }
-// };
+const IPFS_API_URL = (
+  env.VITE_IPFS_API_URL || "http://127.0.0.1:5001/api/v0"
+).replace(/\/$/, "");
 
-// const API_BASE_URL = "https://blockchain-backend-b30t.onrender.com"; // Flask server
-const API_BASE_URL = "http://127.0.0.1:5000"; // Flask server
+const IPFS_GATEWAY_URL = (
+  env.VITE_IPFS_GATEWAY_URL || "http://127.0.0.1:8080/ipfs"
+).replace(/\/$/, "");
 
-/**
- * Upload a file to Flask backend, which stores it in IPFS,
- * and return the metadata URL (gateway link).
- */
 export const uploadToIPFS = async (file: File): Promise<string> => {
   try {
-    const formData = new FormData();
-    formData.append("file", file);
+    const { create } = await import("ipfs-http-client");
+    // Connect to your local node’s HTTP API
+    const client = create({ url: IPFS_API_URL });
 
-    const response = await fetch(`${API_BASE_URL}/upload`, {
-      method: "POST",
-      body: formData,
-    });
+    // Add the file
+    const added = await client.add(file as unknown as Blob);
+    const rec = added as unknown as Record<string, any>;
 
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
+    const cid =
+      typeof rec.path === "string"
+        ? rec.path
+        : typeof rec.cid?.toString === "function"
+        ? rec.cid.toString()
+        : undefined;
 
-    const data = await response.json();
+    if (!cid) throw new Error("Local IPFS returned no CID");
 
-    // Construct metadata URL (can be public IPFS gateway or your Flask fetch route)
-    const metadataUrl = `https://ipfs.io/ipfs/${data.cid}`;
-    console.log(metadataUrl)
-
-    return metadataUrl;
+    // Build a gateway URL (local gateway by default)
+    return `${IPFS_GATEWAY_URL}/${cid}`;
   } catch (err) {
-    console.error("IPFS upload error via Flask:", err);
-    throw err;
+    throw new Error(
+      `Local IPFS upload failed: ${(err as Error).message || String(err)}`
+    );
   }
 };

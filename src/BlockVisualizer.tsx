@@ -102,86 +102,94 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
   return (
     <>
       {/* Use a fragment to wrap the component and the modal */}
-      <div className="bg-white border border-gray-300 rounded-xl p-6">
+      <div className="relative overflow-visible bg-white border border-gray-300 rounded-xl p-6">
         <h2 className="text-2xl font-bold mb-4 text-center text-black">
           Transaction Blocks
         </h2>
-        <div className="flex flex-wrap justify-center items-center gap-2">
-          {blocks.map((block, index) => {
-            if (!block) return null;
-            return (
-              <React.Fragment key={block.number}>
-                <a
-                  href={`https://sepolia.etherscan.io/block/${block.number}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="relative group flex flex-col items-center cursor-pointer p-2">
-                    <BlockIcon />
-                    <span className="mt-1 text-sm font-semibold text-gray-800 group-hover:text-black">
-                      #{block.number}
-                    </span>
-                    <div
-                      className="absolute bottom-full mb-3 w-80 max-w-xs bg-white border border-indigo-300 rounded-lg shadow-2xl p-4
-                                 opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-                                 transition-all duration-300 z-10"
-                    >
-                      <h4 className="font-bold text-lg text-indigo-700 flex justify-between">
-                        <span>Block #{block.number}</span>
-                        <span className="text-sm font-normal text-gray-600">
-                          {block.transactions.length} Txs
-                        </span>
-                      </h4>
-                      <p className="text-xs text-gray-600 mb-2">
-                        {new Date(block.timestamp * 1000).toLocaleString()}
-                      </p>
-                      <div className="mt-2 space-y-1 text-xs break-words">
-                        <p title={block.hash || undefined}>
-                          <span className="font-semibold text-gray-700">
-                            Hash:{" "}
+        <div className="w-full overflow-visible">
+          <div className="relative flex flex-nowrap items-center gap-3 min-w-max py-2 overflow-visible">
+            {blocks.map((block, index) => {
+              if (!block) return null;
+              return (
+                <React.Fragment key={block.number}>
+                  <a
+                    href={`https://sepolia.etherscan.io/block/${block.number}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <div className="relative group inline-flex flex-col items-center cursor-pointer p-2">
+                      <BlockIcon />
+                      <span className="mt-1 text-sm font-semibold text-gray-800 group-hover:text-black">
+                        #{block.number}
+                      </span>
+
+                      {/* Tooltip (absolute, doesn't affect row height) */}
+                      <div
+                        className="absolute bottom-full mb-3 w-80 max-w-xs bg-white border border-indigo-300 rounded-lg shadow-2xl p-4
+                           opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+                           transition-all duration-300 z-50"
+                      >
+                        <h4 className="font-bold text-lg text-indigo-700 flex justify-between">
+                          <span>Block #{block.number}</span>
+                          <span className="text-sm font-normal text-gray-600">
+                            {block.transactions.length} Txs
                           </span>
-                          <span className="font-mono text-black">
-                            {block.hash ? formatHash(block.hash) : "Pending..."}
-                          </span>
+                        </h4>
+                        <p className="text-xs text-gray-600 mb-2">
+                          {new Date(block.timestamp * 1000).toLocaleString()}
                         </p>
-                        <p title={block.miner || undefined}>
-                          <span className="font-semibold text-gray-700">
-                            Miner:{" "}
-                          </span>
-                          <span className="font-mono text-black">
-                            {block.miner ? formatHash(block.miner) : "N/A"}
-                          </span>
-                        </p>
-                        <p>
-                          <span className="font-semibold text-gray-700">
-                            Gas Used:{" "}
-                          </span>
-                          <span className="font-mono text-black">
-                            {block.gasUsed.toString()}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="mt-3">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault(); // Prevent the link from firing
-                            e.stopPropagation(); // Stop event bubbling
-                            setViewingTreeForBlock(block);
-                          }}
-                          className="w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded"
-                        >
-                          View Merkle Tree
-                        </button>
+                        <div className="mt-2 space-y-1 text-xs break-words">
+                          <p title={block.hash || undefined}>
+                            <span className="font-semibold text-gray-700">
+                              Hash:{" "}
+                            </span>
+                            <span className="font-mono text-black">
+                              {block.hash
+                                ? formatHash(block.hash)
+                                : "Pending..."}
+                            </span>
+                          </p>
+                          <p title={block.miner || undefined}>
+                            <span className="font-semibold text-gray-700">
+                              Miner:{" "}
+                            </span>
+                            <span className="font-mono text-black">
+                              {block.miner ? formatHash(block.miner) : "N/A"}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="font-semibold text-gray-700">
+                              Gas Used:{" "}
+                            </span>
+                            <span className="font-mono text-black">
+                              {block.gasUsed.toString()}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="mt-3">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setViewingTreeForBlock(block);
+                            }}
+                            className="w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded"
+                          >
+                            View Merkle Tree
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </a>
-                {index < blocks.length - 1 && (
-                  <div className="hidden md:block w-20 h-px bg-gray-300 border-t border-dashed border-gray-300"></div>
-                )}
-              </React.Fragment>
-            );
-          })}
+                  </a>
+
+                  {/* Connector stays inline */}
+                  {index < blocks.length - 1 && (
+                    <div className="hidden md:block w-20 h-px bg-gray-300 border-t border-dashed border-gray-300" />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
       </div>
       {/* --- MODAL FOR MERKLE TREE --- */}
