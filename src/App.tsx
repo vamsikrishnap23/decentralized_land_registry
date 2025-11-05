@@ -9,9 +9,6 @@ export default function App() {
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-center">
             Decentralized Land Registry
           </h1>
-          <p className="text-gray-400 mt-2 text-center">
-            Built on the Ethereum Blockchain
-          </p>
         </header>
         <main>
           <HomePage />

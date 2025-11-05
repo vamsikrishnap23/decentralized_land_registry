@@ -106,8 +106,13 @@ export default function HomePage() {
 
   const addRelevantBlock = (blockNumber: number) => {
     setRelevantBlockNumbers((prev) => {
-      const newSet = new Set([blockNumber, ...prev]);
-      return Array.from(newSet).sort((a, b) => b - a); // Keep it sorted, newest first
+      // Create a new Set to ensure uniqueness
+      const newSet = new Set([...prev, blockNumber]);
+      // Convert back to array and sort ascending (oldest first)
+      const newArray = Array.from(newSet).sort((a, b) => a - b);
+      // Store in localStorage immediately as a backup
+      localStorage.setItem("parcelAppBlockNumbers", JSON.stringify(newArray));
+      return newArray;
     });
   };
   const handleFileUploadEdit = async () => {
@@ -139,7 +144,7 @@ export default function HomePage() {
     setTotalParcels(null);
     setParcels([]);
     setError("");
-    setRelevantBlockNumbers([]);
+    // Don't clear relevantBlockNumbers to preserve chain history
   }, []);
 
   const fetchAllParcels = useCallback(async (count: number) => {
@@ -679,7 +684,7 @@ export default function HomePage() {
       </div>
 
       {selectedParcel && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 border border-indigo-700 rounded-xl p-6 max-w-2xl w-full shadow-lg relative">
             <button
               onClick={() => setSelectedParcel(null)}
