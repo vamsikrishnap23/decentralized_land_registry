@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { BrowserProvider, Block } from "ethers";
-import MerkleTreeVisualizer from "./MerkleTreeVisualizer"; // Import the new component
+import MerkleTreeVisualizer from "./MerkleTreeVisualizer";
 
 // --- Define an interface for the component's props ---
 interface BlockVisualizerProps {
@@ -25,7 +25,7 @@ const BlockIcon = () => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="w-16 h-16 text-gray-600 group-hover:text-indigo-500 transition-colors duration-300"
+    className="w-16 h-16 text-black group-hover:text-indigo-600 transition-colors duration-300"
   >
     <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
     <path d="m3.3 7 8.7 5 8.7-5" />
@@ -80,8 +80,8 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
 
   if (isLoading) {
     return (
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 text-center">
-        <h2 className="text-2xl font-bold mb-2">
+      <div className="bg-white border border-gray-300 rounded-xl p-6 text-center">
+        <h2 className="text-2xl font-bold mb-2 text-black">
           Loading Transaction Blocks...
         </h2>
       </div>
@@ -90,8 +90,10 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
 
   if (error) {
     return (
-      <div className="bg-red-900/20 text-red-400 border border-red-900 rounded-lg p-6 text-center">
-        <h2 className="text-xl font-bold mb-2">Error Fetching Blocks</h2>
+      <div className="bg-white text-red-700 border border-red-300 rounded-lg p-6 text-center">
+        <h2 className="text-xl font-bold mb-2 text-black">
+          Error Fetching Blocks
+        </h2>
         <p>{error}</p>
       </div>
     );
@@ -99,11 +101,10 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
 
   return (
     <>
-      {" "}
       {/* Use a fragment to wrap the component and the modal */}
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-        <h2 className="text-2xl font-bold mb-4 text-center">
-          Your Transaction Blocks
+      <div className="bg-white border border-gray-300 rounded-xl p-6">
+        <h2 className="text-2xl font-bold mb-4 text-center text-black">
+          Transaction Blocks
         </h2>
         <div className="flex flex-wrap justify-center items-center gap-2">
           {blocks.map((block, index) => {
@@ -117,45 +118,45 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
                 >
                   <div className="relative group flex flex-col items-center cursor-pointer p-2">
                     <BlockIcon />
-                    <span className="mt-1 text-sm font-semibold text-gray-400 group-hover:text-white">
+                    <span className="mt-1 text-sm font-semibold text-gray-800 group-hover:text-black">
                       #{block.number}
                     </span>
                     <div
-                      className="absolute bottom-full mb-3 w-80 max-w-xs bg-gray-800 border border-indigo-500 rounded-lg shadow-2xl p-4
-                                       opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-                                       transition-all duration-300 z-10"
+                      className="absolute bottom-full mb-3 w-80 max-w-xs bg-white border border-indigo-300 rounded-lg shadow-2xl p-4
+                                 opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+                                 transition-all duration-300 z-10"
                     >
-                      <h4 className="font-bold text-lg text-indigo-400 flex justify-between">
+                      <h4 className="font-bold text-lg text-indigo-700 flex justify-between">
                         <span>Block #{block.number}</span>
-                        <span className="text-sm font-normal text-gray-400">
+                        <span className="text-sm font-normal text-gray-600">
                           {block.transactions.length} Txs
                         </span>
                       </h4>
-                      <p className="text-xs text-gray-500 mb-2">
+                      <p className="text-xs text-gray-600 mb-2">
                         {new Date(block.timestamp * 1000).toLocaleString()}
                       </p>
                       <div className="mt-2 space-y-1 text-xs break-words">
                         <p title={block.hash || undefined}>
-                          <span className="font-semibold text-gray-400">
+                          <span className="font-semibold text-gray-700">
                             Hash:{" "}
                           </span>
-                          <span className="font-mono text-gray-300">
+                          <span className="font-mono text-black">
                             {block.hash ? formatHash(block.hash) : "Pending..."}
                           </span>
                         </p>
                         <p title={block.miner || undefined}>
-                          <span className="font-semibold text-gray-400">
+                          <span className="font-semibold text-gray-700">
                             Miner:{" "}
                           </span>
-                          <span className="font-mono text-gray-300">
+                          <span className="font-mono text-black">
                             {block.miner ? formatHash(block.miner) : "N/A"}
                           </span>
                         </p>
                         <p>
-                          <span className="font-semibold text-gray-400">
+                          <span className="font-semibold text-gray-700">
                             Gas Used:{" "}
                           </span>
-                          <span className="font-mono text-gray-300">
+                          <span className="font-mono text-black">
                             {block.gasUsed.toString()}
                           </span>
                         </p>
@@ -176,7 +177,7 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
                   </div>
                 </a>
                 {index < blocks.length - 1 && (
-                  <div className="hidden md:block w-20 h-px bg-gray-700 border-t border-dashed border-gray-600"></div>
+                  <div className="hidden md:block w-20 h-px bg-gray-300 border-t border-dashed border-gray-300"></div>
                 )}
               </React.Fragment>
             );
@@ -190,17 +191,17 @@ const BlockVisualizer = ({ blockNumbers }: BlockVisualizerProps) => {
           onClick={() => setViewingTreeForBlock(null)} // Close modal on background click
         >
           <div
-            className="bg-gray-800 border border-gray-700 rounded-xl max-w-4xl w-full shadow-lg relative max-h-[90vh] overflow-y-auto"
+            className="bg-white border border-gray-300 rounded-xl max-w-4xl w-full shadow-lg relative max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()} // Prevent modal from closing when clicking inside it
           >
             <button
               onClick={() => setViewingTreeForBlock(null)}
-              className="absolute top-3 right-4 text-gray-400 hover:text-red-400 text-2xl font-bold"
+              className="absolute top-3 right-4 text-gray-500 hover:text-red-600 text-2xl font-bold"
             >
               &times;
             </button>
             <div className="p-6">
-              <h3 className="text-xl font-bold text-indigo-300 mb-4">
+              <h3 className="text-xl font-bold text-indigo-700 mb-4">
                 Merkle Tree for Block #{viewingTreeForBlock.number}
               </h3>
               <MerkleTreeVisualizer

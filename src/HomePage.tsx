@@ -42,10 +42,18 @@ function isReasonError(err: unknown): err is { reason: string } {
   );
 }
 
-// --- Main HomePage Component ---
-export default function HomePage() {
+interface HomePageProps {
+  initialAccount: string;
+  onDisconnect: () => void;
+}
+
+// ---------- Modern Light Theme Dashboard ----------
+export default function HomePage({
+  initialAccount,
+  onDisconnect,
+}: HomePageProps) {
   // Wallet state
-  const [account, setAccount] = useState<string | null>(null);
+  const [account, setAccount] = useState<string>(initialAccount);
   const [balance, setBalance] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
@@ -55,6 +63,7 @@ export default function HomePage() {
   const [isContractLoading, setIsContractLoading] = useState<boolean>(false);
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [isParcelsLoading, setIsParcelsLoading] = useState<boolean>(false);
+  const [showMineOnly, setShowMineOnly] = useState(false);
 
   // UI state for interactions
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
@@ -85,18 +94,11 @@ export default function HomePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [relevantBlockNumbers, setRelevantBlockNumbers] = useState<number[]>(
     () => {
-      // Try to get saved blocks from localStorage when the component first loads
       const savedBlocks = localStorage.getItem("parcelAppBlockNumbers");
-      if (savedBlocks) {
-        // If we found saved blocks, parse them back into an array
-        return JSON.parse(savedBlocks);
-      }
-      // Otherwise, start with an empty array
-      return [];
+      return savedBlocks ? JSON.parse(savedBlocks) : [];
     }
   );
 
-  // This useEffect hook saves the block numbers to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(
       "parcelAppBlockNumbers",
@@ -106,15 +108,13 @@ export default function HomePage() {
 
   const addRelevantBlock = (blockNumber: number) => {
     setRelevantBlockNumbers((prev) => {
-      // Create a new Set to ensure uniqueness
       const newSet = new Set([...prev, blockNumber]);
-      // Convert back to array and sort ascending (oldest first)
       const newArray = Array.from(newSet).sort((a, b) => a - b);
-      // Store in localStorage immediately as a backup
       localStorage.setItem("parcelAppBlockNumbers", JSON.stringify(newArray));
       return newArray;
     });
   };
+
   const handleFileUploadEdit = async () => {
     if (!selectedFileEdit) {
       alert("Please select a file first!");
@@ -122,11 +122,7 @@ export default function HomePage() {
     }
     try {
       setIsUploading(true);
-
-      // ⬅️ Call the function from ipfs.tsx
       const url = await uploadToIPFS(selectedFileEdit);
-
-      // Autofill the metadata field with the returned URL
       setMetadataEdit(url);
     } catch (err) {
       console.error("File upload failed:", err);
@@ -137,15 +133,13 @@ export default function HomePage() {
   };
 
   // --- Logic and Contract Functions ---
-
   const disconnectWallet = useCallback(() => {
-    setAccount(null);
     setBalance(null);
     setTotalParcels(null);
     setParcels([]);
     setError("");
-    // Don't clear relevantBlockNumbers to preserve chain history
-  }, []);
+    onDisconnect();
+  }, [onDisconnect]);
 
   const fetchAllParcels = useCallback(async (count: number) => {
     if (!window.ethereum || !count) return;
@@ -167,11 +161,9 @@ export default function HomePage() {
             price: parcel.price > 0 ? ethers.formatEther(parcel.price) : null,
             rawPrice: parcel.price > 0 ? parcel.price.toString() : null,
           });
-        } catch (e) {
-          // Parcel might not exist, skip it
-        }
+        } catch (e) {}
       }
-      setParcels(fetched.reverse()); // Show newest first
+      setParcels(fetched.reverse());
     } catch (err) {
       setError("Could not fetch parcels from the smart contract.");
     } finally {
@@ -294,7 +286,7 @@ export default function HomePage() {
       setTransferTxStatus("Parcel transferred successfully! 🎉");
       setTransferParcelId("");
       setTransferToAddress("");
-      fetchTotalParcels(); // Refresh data after transfer
+      fetchTotalParcels();
     } catch (err) {
       const errorObj = err as { reason?: string };
       setTransferTxStatus(`Error: ${errorObj.reason || "Transaction failed."}`);
@@ -309,12 +301,13 @@ export default function HomePage() {
       setActionStatus("Please enter a valid price in ETH.");
       return;
     }
+
     setActionStatus("Listing for sale...");
     try {
       const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new Contract(contractAddress, contractABI, signer);
-      const priceInWei = ethers.parseEther(listPrice); // Convert ETH to Wei
+      const priceInWei = ethers.parseEther(listPrice);
       const tx = await contract.listParcelForSale(parcelId, priceInWei);
       const receipt: TransactionReceipt | null = await tx.wait();
       if (receipt?.blockNumber) {
@@ -423,7 +416,6 @@ export default function HomePage() {
     try {
       const provider = new BrowserProvider(window.ethereum);
       const contract = new Contract(contractAddress, contractABI, provider);
-      // Hash the coordinates string before calling getParcelIdByCoords
       const coordsHash = keccak256(toUtf8Bytes(coordsSearch));
       const id = await contract.getParcelIdByCoords(coordsHash);
       if (id && id.toString() !== "0") {
@@ -474,13 +466,11 @@ export default function HomePage() {
     if (account) fetchTotalParcels();
   }, [account, fetchTotalParcels]);
 
-  // --- UI ---
-
-  // Error boundary for blank screen or missing MetaMask/ethers
+  // --- UI Error/No Wallet ---
   if (!window.ethereum || typeof ethers === "undefined") {
     return (
       <div className="w-full max-w-md mx-auto mt-10">
-        <div className="bg-red-900/20 text-red-400 border border-red-900 rounded-lg p-6 text-center">
+        <div className="bg-white text-red-600 border border-red-300 rounded-lg p-6 text-center">
           <h2 className="text-lg font-bold mb-2">Error</h2>
           <p>
             MetaMask and/or ethers.js not found. Please ensure MetaMask is
@@ -493,11 +483,11 @@ export default function HomePage() {
   if (error) {
     return (
       <div className="w-full max-w-md mx-auto mt-10">
-        <div className="bg-red-900/20 text-red-400 border border-red-900 rounded-lg p-6 text-center">
+        <div className="bg-white text-red-600 border border-red-300 rounded-lg p-6 text-center">
           <h2 className="text-lg font-bold mb-2">Error</h2>
           <p>{error}</p>
           <button
-            className="mt-4 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-md h-10 px-4 py-2"
+            className="mt-4 bg-black hover:bg-zinc-900 text-white font-medium rounded-md h-10 px-4 py-2"
             onClick={() => window.location.reload()}
           >
             Reload Page
@@ -508,483 +498,641 @@ export default function HomePage() {
   }
   if (!account) {
     return (
-      <div className="w-full max-w-md mx-auto">
-        <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-lg p-6">
+      <div className="w-full max-w-md mx-auto mt-20">
+        <div className="text-center space-y-6 px-4">
+          <img
+            src="/metamask-fox.svg"
+            alt="MetaMask"
+            className="w-24 h-24 mx-auto"
+          />
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-black">
+              Connect Your Wallet
+            </h2>
+            <p className="text-gray-700">
+              Please connect your MetaMask wallet to access the land registry
+            </p>
+          </div>
           <button
             onClick={connectWallet}
             disabled={isConnecting}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md h-10 px-4 py-2 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            className="w-full bg-white border-2 border-black hover:bg-gray-50 text-black font-medium rounded-lg h-12 px-6 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 group"
           >
-            {isConnecting ? "Connecting..." : "Connect MetaMask Wallet"}
+            {isConnecting ? (
+              <>
+                <svg
+                  className="animate-spin h-5 w-5 text-black"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Connecting...</span>
+              </>
+            ) : (
+              <>
+                <img
+                  src="/metamask-fox.svg"
+                  alt="MetaMask"
+                  className="h-5 w-5"
+                />
+                <span>Connect with MetaMask</span>
+                <svg
+                  className="w-5 h-5 group-hover:translate-x-1 transition-transform"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14 5l7 7m0 0l-7 7m7-7H3"
+                  />
+                </svg>
+              </>
+            )}
           </button>
         </div>
       </div>
     );
   }
 
+  // ---------- Layout ----------
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-8 py-6">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-6 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center text-xl font-bold">
+    <div className="w-full max-w-7xl mx-auto py-8 px-4 lg:px-0">
+      {/* Top Navigation / Account Bar */}
+      <div className="w-full flex justify-end items-center p-4">
+        <div className="flex items-center gap-4 bg-white border border-black rounded-full px-4 py-2 shadow-sm">
+          <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-sm font-bold text-white">
             {account?.substring(2, 6).toUpperCase()}
           </div>
-          <div>
-            <p className="font-mono text-lg" title={account || undefined}>
+          <div className="text-right">
+            <p className="font-mono text-sm text-black" title={account}>
               {formatAddress(account)}
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-xs text-gray-600">
               {balance ? `${parseFloat(balance).toFixed(4)} ETH` : "..."}
             </p>
           </div>
-        </div>
-        <button
-          onClick={disconnectWallet}
-          className="bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-md h-10 px-4 py-2 transition-colors"
-        >
-          Disconnect
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 flex flex-col items-center justify-center">
-          <h2 className="text-lg font-bold mb-2">Total Parcels</h2>
-          {isContractLoading ? (
-            <p>...</p>
-          ) : (
-            <span className="text-4xl font-bold text-indigo-400">
-              {totalParcels ?? "N/A"}
-            </span>
-          )}
-        </div>
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 flex flex-col items-center justify-center">
-          <h2 className="text-lg font-bold mb-2">On Sale</h2>
-          {isParcelsLoading ? (
-            <p>...</p>
-          ) : (
-            <span className="text-4xl font-bold text-green-400">
-              {parcels.filter((p) => p.forSale).length}
-            </span>
-          )}
-        </div>
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 flex flex-col items-center justify-center">
-          <h2 className="text-lg font-bold mb-2">Your Parcels</h2>
-          {isParcelsLoading ? (
-            <p>...</p>
-          ) : (
-            <span className="text-4xl font-bold text-yellow-400">
-              {
-                parcels.filter(
-                  (p) => p.owner?.toLowerCase() === account?.toLowerCase()
-                ).length
-              }
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-        <h2 className="text-xl font-bold mb-4">
-          Search Parcel by Coordinates Hash
-        </h2>
-        <div className="flex gap-2 items-center">
-          <input
-            type="text"
-            placeholder="Enter coords hash (0x...)"
-            value={coordsSearch}
-            onChange={(e) => setCoordsSearch(e.target.value)}
-            className="w-full bg-gray-800 border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-indigo-500"
-          />
           <button
-            onClick={handleCoordsSearch}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md px-4 py-2"
+            onClick={disconnectWallet}
+            className="text-xs border border-black bg-white hover:bg-gray-100 text-black font-medium px-3 py-1.5 rounded-full transition"
           >
-            Search
+            Disconnect
           </button>
         </div>
-        {coordsSearchResult && (
-          <div className="mt-4 bg-gray-800 rounded p-3">
-            <span className="font-mono text-indigo-400">
-              ID: {coordsSearchResult.id}
-            </span>{" "}
-            |{" "}
-            <span className="font-mono text-blue-300">
-              Owner: {formatAddress(coordsSearchResult.owner)}
-            </span>
+      </div>
+      <BlockVisualizer blockNumbers={relevantBlockNumbers} />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+        {[
+          {
+            label: "Total Parcels",
+            value: totalParcels ?? "N/A",
+            color: "text-indigo-600",
+          },
+          {
+            label: "On Sale",
+            value: isParcelsLoading
+              ? "..."
+              : parcels.filter((p) => p.forSale).length,
+            color: "text-green-600",
+          },
+          {
+            label: "Your Parcels",
+            value: isParcelsLoading
+              ? "..."
+              : parcels.filter(
+                  (p) => p.owner?.toLowerCase() === account?.toLowerCase()
+                ).length,
+            color: "text-amber-600",
+          },
+        ].map((kpi, i) => (
+          <div
+            key={i}
+            className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
+          >
+            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+            <div className="relative">
+              <h2 className="text-lg font-semibold text-black mb-2">
+                {kpi.label}
+              </h2>
+              <span className={`text-4xl font-bold ${kpi.color}`}>
+                {isContractLoading && i === 0 ? "..." : kpi.value}
+              </span>
+            </div>
           </div>
-        )}
+        ))}
       </div>
 
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-        <h2 className="text-2xl font-bold mb-4 text-center">
-          All Registered Parcels
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead>
-              <tr className="bg-gray-800">
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
-                  ID
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
-                  Owner
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
-                  Coords Hash
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {isParcelsLoading ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-4 text-gray-400">
-                    Loading parcels...
-                  </td>
-                </tr>
-              ) : parcels.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-4 text-gray-400">
-                    No parcels registered yet.
-                  </td>
-                </tr>
-              ) : (
-                parcels.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-gray-800 cursor-pointer"
-                    onClick={() => setSelectedParcel(p)}
-                  >
-                    <td className="px-3 py-2 text-sm text-indigo-300 font-mono">
-                      {p.id}
-                    </td>
-                    <td className="px-3 py-2 text-sm font-mono text-blue-200">
-                      {formatAddress(p.owner)}
-                    </td>
-                    <td className="px-3 py-2 text-xs font-mono text-gray-400 truncate max-w-[120px]">
-                      {p.coordsHash}
-                    </td>
-                    <td className="px-3 py-2 text-sm">
-                      {p.forSale ? (
-                        <span className="text-green-400 font-bold">
-                          On Sale ({p.price} ETH)
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">Not for Sale</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {selectedParcel && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-indigo-700 rounded-xl p-6 max-w-2xl w-full shadow-lg relative">
-            <button
-              onClick={() => setSelectedParcel(null)}
-              className="absolute top-3 right-4 text-gray-400 hover:text-red-400 text-2xl font-bold"
-            >
-              &times;
-            </button>
-            <h3 className="text-xl font-bold text-indigo-300 mb-4">
-              Parcel Details (ID: {selectedParcel.id})
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div>
-                <span className="font-semibold text-gray-300 w-28 inline-block">
-                  Owner:
-                </span>
-                <span className="font-mono text-blue-300">
-                  {selectedParcel.owner}
-                </span>
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        {/* Left: Table & Search */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+            <div className="relative">
+              <h2 className="text-xl font-semibold text-black mb-4">
+                Search Parcel by Coordinates Hash
+              </h2>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="Enter coords hash (0x...)"
+                  value={coordsSearch}
+                  onChange={(e) => setCoordsSearch(e.target.value)}
+                  className="w-full bg-white border-2 border-black rounded-2xl shadow-sm p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                />
+                <button
+                  onClick={handleCoordsSearch}
+                  className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
+                >
+                  Search
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
+                </button>
               </div>
-              <div>
-                <span className="font-semibold text-gray-300 w-28 inline-block">
-                  Coords Hash:
-                </span>
-                <span className="font-mono text-xs">
-                  {selectedParcel.coordsHash}
-                </span>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-300 w-28 inline-block">
-                  Area (sqm):
-                </span>
-                <span className="text-white">{selectedParcel.areaSqm}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-300 w-28 inline-block">
-                  For Sale:
-                </span>
-                {selectedParcel.forSale ? (
-                  <span className="font-bold text-green-400">Yes</span>
-                ) : (
-                  <span>No</span>
-                )}
-              </div>
-              {selectedParcel.forSale && (
-                <div>
-                  <span className="font-semibold text-gray-300 w-28 inline-block">
-                    Price:
+              {coordsSearchResult && (
+                <div className="mt-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-3">
+                  <span className="font-mono text-indigo-600">
+                    ID: {coordsSearchResult.id}
                   </span>
-                  <span className="font-mono text-green-300">
-                    {selectedParcel.price} ETH
+                  <span className="mx-2 text-gray-400">|</span>
+                  <span className="font-mono text-blue-600">
+                    Owner: {formatAddress(coordsSearchResult.owner)}
                   </span>
-                </div>
-              )}
-              {selectedParcel.metadataURI && (
-                <div>
-                  <span className="font-semibold text-gray-300 w-28 inline-block">
-                    Metadata URI:
-                  </span>
-                  <a
-                    href={selectedParcel.metadataURI}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 underline break-all"
-                  >
-                    {selectedParcel.metadataURI}
-                  </a>
                 </div>
               )}
             </div>
-            <div className="mt-6">
-              <h4 className="font-bold text-lg mb-3">Actions</h4>
-              {account?.toLowerCase() === selectedParcel.owner.toLowerCase() &&
-                !selectedParcel.forSale && (
+          </div>
+
+          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+            <div className="relative">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-2xl font-semibold text-black">Parcels</h2>
+
+                {/* All / Mine filter */}
+                <div className="inline-flex items-center rounded-full border border-black bg-white p-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowMineOnly(false)}
+                    className={`px-3 py-1.5 text-sm rounded-full transition ${
+                      showMineOnly ? "text-black" : "bg-black text-white"
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMineOnly(true)}
+                    className={`px-3 py-1.5 text-sm rounded-full transition ${
+                      showMineOnly ? "bg-black text-white" : "text-black"
+                    }`}
+                  >
+                    Mine
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-zinc-200">
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                        ID
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                        Owner
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                        Coords Hash
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200">
+                    {isParcelsLoading ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="text-center py-4 text-gray-500"
+                        >
+                          Loading parcels...
+                        </td>
+                      </tr>
+                    ) : (showMineOnly
+                        ? parcels.filter(
+                            (p) =>
+                              p.owner?.toLowerCase() === account?.toLowerCase()
+                          )
+                        : parcels
+                      ).length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="text-center py-4 text-gray-500"
+                        >
+                          {showMineOnly
+                            ? "You don’t own any parcels yet."
+                            : "No parcels registered yet."}
+                        </td>
+                      </tr>
+                    ) : (
+                      (showMineOnly
+                        ? parcels.filter(
+                            (p) =>
+                              p.owner?.toLowerCase() === account?.toLowerCase()
+                          )
+                        : parcels
+                      ).map((p) => (
+                        <tr
+                          key={p.id}
+                          className="hover:bg-zinc-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedParcel(p)}
+                        >
+                          <td className="px-3 py-2 text-sm text-indigo-600 font-mono">
+                            {p.id}
+                          </td>
+                          <td className="px-3 py-2 text-sm font-mono text-blue-600">
+                            {formatAddress(p.owner)}
+                          </td>
+                          <td className="px-3 py-2 text-xs font-mono text-gray-700 truncate max-w-[120px]">
+                            {p.coordsHash}
+                          </td>
+                          <td className="px-3 py-2 text-sm">
+                            {p.forSale ? (
+                              <span className="text-green-600 font-semibold">
+                                On Sale ({p.price} ETH)
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">
+                                Not for Sale
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Chain blocks */}
+          {/* <BlockVisualizer blockNumbers={relevantBlockNumbers} /> */}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="space-y-6">
+          {/* Register */}
+          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+            <div className="relative">
+              <h2 className="text-xl font-semibold text-black">
+                Register New Parcel
+              </h2>
+              <form onSubmit={handleRegister} className="space-y-4 mt-4">
+                <div>
+                  <label
+                    htmlFor="owner"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Owner Address
+                  </label>
+                  <input
+                    type="text"
+                    id="owner"
+                    value={ownerAddress}
+                    onChange={(e) => setOwnerAddress(e.target.value)}
+                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                    required
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="coords"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Coordinates
+                  </label>
+                  <input
+                    type="text"
+                    id="coords"
+                    value={coordinates}
+                    onChange={(e) => setCoordinates(e.target.value)}
+                    placeholder="e.g., 40.7128,-74.0060"
+                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="file"
+                    onChange={(e) =>
+                      e.target.files && setSelectedFileEdit(e.target.files[0])
+                    }
+                    className="text-black bg-white border-2 border-black rounded-2xl px-4 py-2
+               focus:outline-none focus:ring-0
+               file:mr-3 file:px-3 file:py-1.5 file:rounded-xl file:border-0
+               file:bg-gray-100 file:text-gray-800 hover:file:bg-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFileUploadEdit}
+                    className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-white px-4 py-2 text-base font-medium text-black transition-all hover:-translate-y-0.5 hover:bg-gray-50 active:translate-y-0"
+                  >
+                    {isUploading ? "Uploading..." : "Upload to IPFS"}
+                    <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(0,0,0,0.08),transparent_60%)]" />
+                  </button>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="metadata"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Metadata URI (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="metadata"
+                    value={metadataEdit}
+                    onChange={(e) => setMetadataURI(e.target.value)}
+                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="area"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Area (sqm)
+                  </label>
+                  <input
+                    type="number"
+                    id="area"
+                    value={area}
+                    onChange={(e) => setArea(e.target.value)}
+                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isRegistering}
+                  className="relative w-full inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0 disabled:opacity-50"
+                >
+                  {isRegistering ? "Registering..." : "Register Parcel"}
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
+                </button>
+                {registerTxStatus && (
+                  <p className="text-sm text-center text-gray-700">
+                    {registerTxStatus}
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
+
+          {/* Transfer */}
+          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+            <div className="relative">
+              <h2 className="text-xl font-semibold text-black">
+                Transfer Parcel
+              </h2>
+              <form onSubmit={handleTransfer} className="space-y-4 mt-4">
+                <div>
+                  <label
+                    htmlFor="transferId"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Parcel ID
+                  </label>
+                  <input
+                    type="number"
+                    id="transferId"
+                    value={transferParcelId}
+                    onChange={(e) => setTransferParcelId(e.target.value)}
+                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                    required
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="transferTo"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Recipient Address
+                  </label>
+                  <input
+                    type="text"
+                    id="transferTo"
+                    value={transferToAddress}
+                    onChange={(e) => setTransferToAddress(e.target.value)}
+                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isTransferring}
+                  className="relative w-full inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0 disabled:opacity-50"
+                >
+                  {isTransferring ? "Transferring..." : "Transfer Ownership"}
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
+                </button>
+                {transferTxStatus && (
+                  <p className="text-sm text-center text-gray-700">
+                    {transferTxStatus}
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Parcel Modal */}
+      {selectedParcel && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center p-4 z-50">
+          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 max-w-2xl w-full shadow-xl">
+            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+            <div className="relative">
+              <button
+                onClick={() => setSelectedParcel(null)}
+                className="absolute top-3 right-4 text-gray-400 hover:text-red-600 text-2xl font-bold"
+              >
+                &times;
+              </button>
+              <h3 className="text-xl font-semibold text-black mb-4">
+                Parcel Details (ID: {selectedParcel.id})
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="font-semibold text-gray-700 w-28 inline-block">
+                    Owner:
+                  </span>
+                  <span className="font-mono text-blue-600">
+                    {selectedParcel.owner}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-700 w-28 inline-block">
+                    Coords Hash:
+                  </span>
+                  <span className="font-mono text-xs text-gray-700">
+                    {selectedParcel.coordsHash}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-700 w-28 inline-block">
+                    Area (sqm):
+                  </span>
+                  <span className="text-black">{selectedParcel.areaSqm}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-700 w-28 inline-block">
+                    For Sale:
+                  </span>
+                  {selectedParcel.forSale ? (
+                    <span className="font-semibold text-green-600">Yes</span>
+                  ) : (
+                    <span className="text-gray-600">No</span>
+                  )}
+                </div>
+                {selectedParcel.forSale && (
+                  <div>
+                    <span className="font-semibold text-gray-700 w-28 inline-block">
+                      Price:
+                    </span>
+                    <span className="font-mono text-green-600">
+                      {selectedParcel.price} ETH
+                    </span>
+                  </div>
+                )}
+                {selectedParcel.metadataURI && (
+                  <div>
+                    <span className="font-semibold text-gray-700 w-28 inline-block">
+                      Metadata URI:
+                    </span>
+                    <a
+                      href={selectedParcel.metadataURI}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline break-all"
+                    >
+                      {selectedParcel.metadataURI}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions in modal */}
+              <div className="mt-6 space-y-2">
+                {account?.toLowerCase() ===
+                  selectedParcel.owner.toLowerCase() &&
+                  !selectedParcel.forSale && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleListForSale(selectedParcel.id);
+                      }}
+                      className="flex gap-2 items-center p-3 bg-zinc-50 border border-zinc-200 rounded-2xl"
+                    >
+                      <input
+                        type="number"
+                        step="0.0001"
+                        min="0.0001"
+                        placeholder="Price in ETH"
+                        value={listPrice}
+                        onChange={(e) => setListPrice(e.target.value)}
+                        className="bg-white border-2 border-black rounded-2xl p-2 text-black w-32 focus:ring-2 focus:ring-black focus:border-black"
+                        required
+                      />
+                      <button
+                        type="submit"
+                        className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
+                      >
+                        List for Sale
+                        <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
+                      </button>
+                    </form>
+                  )}
+                {account?.toLowerCase() ===
+                  selectedParcel.owner.toLowerCase() &&
+                  selectedParcel.forSale && (
+                    <button
+                      onClick={() => handleCancelSale(selectedParcel.id)}
+                      className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
+                    >
+                      Cancel Sale
+                      <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
+                    </button>
+                  )}
+                {account?.toLowerCase() !==
+                  selectedParcel.owner.toLowerCase() &&
+                  selectedParcel.forSale && (
+                    <button
+                      onClick={() => handleBuyParcel(selectedParcel)}
+                      className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
+                    >
+                      Buy for {selectedParcel.price} ETH
+                      <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
+                    </button>
+                  )}
+                {account?.toLowerCase() ===
+                  selectedParcel.owner.toLowerCase() && (
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
-                      handleListForSale(selectedParcel.id);
+                      handleUpdateMetadata(selectedParcel.id);
                     }}
-                    className="flex gap-2 items-center p-3 bg-gray-800 rounded-md"
+                    className="flex gap-2 items-center p-3 bg-zinc-50 border border-zinc-200 rounded-2xl"
                   >
                     <input
-                      type="number"
-                      step="0.0001"
-                      min="0.0001"
-                      placeholder="Price in ETH"
-                      value={listPrice}
-                      onChange={(e) => setListPrice(e.target.value)}
-                      className="bg-gray-700 border-gray-600 rounded-md p-2 text-white w-32"
+                      type="text"
+                      placeholder="New Metadata URI"
+                      value={metadataEdit}
+                      onChange={(e) => setMetadataEdit(e.target.value)}
+                      className="bg-white border-2 border-black rounded-2xl p-2 text-black w-48 focus:ring-2 focus:ring-black focus:border-black"
                       required
                     />
                     <button
                       type="submit"
-                      className="bg-green-700 hover:bg-green-800 text-white rounded-md px-3 py-2 font-medium"
+                      className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
                     >
-                      List for Sale
+                      Update URI
+                      <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
                     </button>
                   </form>
                 )}
-              {account?.toLowerCase() === selectedParcel.owner.toLowerCase() &&
-                selectedParcel.forSale && (
-                  <button
-                    onClick={() => handleCancelSale(selectedParcel.id)}
-                    className="bg-yellow-700 hover:bg-yellow-800 text-white rounded-md px-3 py-2 font-medium"
-                  >
-                    Cancel Sale
-                  </button>
-                )}
-              {account?.toLowerCase() !== selectedParcel.owner.toLowerCase() &&
-                selectedParcel.forSale && (
-                  <button
-                    onClick={() => handleBuyParcel(selectedParcel)}
-                    className="bg-blue-700 hover:bg-blue-800 text-white rounded-md px-3 py-2 font-medium"
-                  >
-                    Buy for {selectedParcel.price} ETH
-                  </button>
-                )}
-              {account?.toLowerCase() ===
-                selectedParcel.owner.toLowerCase() && (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleUpdateMetadata(selectedParcel.id);
-                  }}
-                  className="flex gap-2 items-center p-3 bg-gray-800 rounded-md mt-2"
-                >
-                  <input
-                    type="text"
-                    placeholder="New Metadata URI"
-                    value={metadataEdit}
-                    onChange={(e) => setMetadataEdit(e.target.value)}
-                    className="bg-gray-700 border-gray-600 rounded-md p-2 text-white w-48"
-                    required
-                  />
-
-                  <button
-                    type="submit"
-                    className="bg-purple-700 hover:bg-purple-800 text-white rounded-md px-3 py-2 font-medium"
-                  >
-                    Update URI
-                  </button>
-                </form>
+              </div>
+              {actionStatus && (
+                <div className="mt-3 text-gray-700 text-sm">{actionStatus}</div>
               )}
             </div>
-            {actionStatus && (
-              <div className="mt-3 text-indigo-300 text-sm">{actionStatus}</div>
-            )}
           </div>
         </div>
       )}
-      <BlockVisualizer blockNumbers={relevantBlockNumbers} />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-4">
-          <h2 className="text-xl font-bold">Register New Parcel</h2>
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label
-                htmlFor="owner"
-                className="block text-sm font-medium text-gray-400"
-              >
-                Owner Address
-              </label>
-              <input
-                type="text"
-                id="owner"
-                value={ownerAddress}
-                onChange={(e) => setOwnerAddress(e.target.value)}
-                className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
-                required
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="coords"
-                className="block text-sm font-medium text-gray-400"
-              >
-                Coordinates
-              </label>
-              <input
-                type="text"
-                id="coords"
-                value={coordinates}
-                onChange={(e) => setCoordinates(e.target.value)}
-                placeholder="e.g., 40.7128,-74.0060"
-                className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
-                required
-              />
-            </div>
-            <div className="flex gap-2 items-center">
-              <input
-                type="file"
-                onChange={(e) =>
-                  e.target.files && setSelectedFileEdit(e.target.files[0])
-                }
-                className="text-white"
-              />
-              <button
-                type="button"
-                onClick={handleFileUploadEdit} // calls IPFS upload
-                // disabled={isUploading}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-3 py-2"
-              >
-                {isUploading ? "Uploading..." : "Upload to IPFS"}
-              </button>
-            </div>
-            <div>
-              <label
-                htmlFor="metadata"
-                className="block text-sm font-medium text-gray-400"
-              >
-                Metadata URI (Optional)
-              </label>
-              <input
-                type="text"
-                id="metadata"
-                value={metadataEdit}
-                onChange={(e) => setMetadataURI(e.target.value)}
-                className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="area"
-                className="block text-sm font-medium text-gray-400"
-              >
-                Area (sqm)
-              </label>
-              <input
-                type="number"
-                id="area"
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isRegistering}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md h-10"
-            >
-              {isRegistering ? "Registering..." : "Register Parcel"}
-            </button>
-            {registerTxStatus && (
-              <p className="text-sm text-center text-gray-400">
-                {registerTxStatus}
-              </p>
-            )}
-          </form>
-        </div>
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-4">
-          <h2 className="text-xl font-bold">Transfer Parcel</h2>
-          <form onSubmit={handleTransfer} className="space-y-4">
-            <div>
-              <label
-                htmlFor="transferId"
-                className="block text-sm font-medium text-gray-400"
-              >
-                Parcel ID
-              </label>
-              <input
-                type="number"
-                id="transferId"
-                value={transferParcelId}
-                onChange={(e) => setTransferParcelId(e.target.value)}
-                className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
-                required
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="transferTo"
-                className="block text-sm font-medium text-gray-400"
-              >
-                Recipient Address
-              </label>
-              <input
-                type="text"
-                id="transferTo"
-                value={transferToAddress}
-                onChange={(e) => setTransferToAddress(e.target.value)}
-                className="mt-1 w-full bg-gray-800 border-gray-600 rounded-md p-2"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isTransferring}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md h-10"
-            >
-              {isTransferring ? "Transferring..." : "Transfer Ownership"}
-            </button>
-            {transferTxStatus && (
-              <p className="text-sm text-center text-gray-400">
-                {transferTxStatus}
-              </p>
-            )}
-          </form>
-        </div>
-      </div>
     </div>
   );
 }
