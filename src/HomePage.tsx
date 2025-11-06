@@ -597,7 +597,11 @@ export default function HomePage({
           </button>
         </div>
       </div>
-      <BlockVisualizer blockNumbers={relevantBlockNumbers} />
+      <div className="relative mb-6 -mx-4 lg:mx-0">
+        <div className="overflow-visible">
+          <BlockVisualizer blockNumbers={relevantBlockNumbers} />
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
