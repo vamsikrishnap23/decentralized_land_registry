@@ -5,7 +5,7 @@ const IPFS_API_URL = (
   env.VITE_IPFS_API_URL || "http://127.0.0.1:5001/api/v0"
 ).replace(/\/$/, "");
 const GATEWAY = (
-  env.VITE_IPFS_GATEWAY_URL || "http://127.0.0.1:8080/ipfs"
+  env.VITE_IPFS_GATEWAY_URL || "http://127.0.0.1:8081/ipfs"
 ).replace(/\/$/, "");
 
 type Coords = { lat: number; lng: number };

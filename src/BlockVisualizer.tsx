@@ -10,8 +10,8 @@ interface BlockVisualizerProps {
 }
 
 // Helper function to shorten long addresses or hashes
-const formatHash = (hash: string) =>
-  `${hash.substring(0, 10)}...${hash.substring(hash.length - 8)}`;
+// const formatHash = (hash: string) =>
+//   `${hash.substring(0, 10)}...${hash.substring(hash.length - 8)}`;
 
 // A simple SVG component for the block icon 🧊
 const BlockIcon = () => (
