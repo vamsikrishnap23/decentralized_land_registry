@@ -65,6 +65,9 @@ export default function HomePage({
   const [isParcelsLoading, setIsParcelsLoading] = useState<boolean>(false);
   const [showMineOnly, setShowMineOnly] = useState(false);
 
+  // Tabs state for isolated functionality
+  const [activeTab, setActiveTab] = useState<string>("parcels");
+
   // UI state for interactions
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
   const [actionStatus, setActionStatus] = useState<string>("");
@@ -162,10 +165,12 @@ export default function HomePage({
             price: parcel.price > 0 ? ethers.formatEther(parcel.price) : null,
             rawPrice: parcel.price > 0 ? parcel.price.toString() : null,
           });
-        } catch (e) {}
+        } catch {
+          // ignore missing parcel index
+        }
       }
       setParcels(fetched.reverse());
-    } catch (err) {
+    } catch {
       setError("Could not fetch parcels from the smart contract.");
     } finally {
       setIsParcelsLoading(false);
@@ -186,7 +191,7 @@ export default function HomePage({
       } else {
         setParcels([]);
       }
-    } catch (err) {
+    } catch {
       setError("Could not fetch data from the smart contract.");
     } finally {
       setIsContractLoading(false);
@@ -413,13 +418,29 @@ export default function HomePage({
   const handleCoordsSearch = async () => {
     setCoordsSearchResult(null);
     setActionStatus("");
-    if (!coordsSearch || !window.ethereum) return;
+    const raw = coordsSearch?.toString().trim();
+    if (!raw) {
+      setActionStatus("Please enter coordinates or a coords hash.");
+      return;
+    }
+    if (!window.ethereum) {
+      setActionStatus("MetaMask is not available.");
+      return;
+    }
+
     try {
       const provider = new BrowserProvider(window.ethereum);
       const contract = new Contract(contractAddress, contractABI, provider);
-      const coordsHash = keccak256(toUtf8Bytes(coordsSearch));
+
+      // Accept either a 0x-prefixed coords hash or a raw coords string that we must keccak256
+      const coordsHash = raw.startsWith("0x")
+        ? raw
+        : keccak256(toUtf8Bytes(raw));
+
       const id = await contract.getParcelIdByCoords(coordsHash);
-      if (id && id.toString() !== "0") {
+      // id may be a BigNumber-like value; check for zero
+      const idStr = id?.toString ? id.toString() : String(id);
+      if (id && idStr !== "0") {
         const parcel = await contract.getParcel(id);
         setCoordsSearchResult({
           id: parcel.id.toString(),
@@ -431,6 +452,7 @@ export default function HomePage({
           price: parcel.price > 0 ? ethers.formatEther(parcel.price) : null,
           rawPrice: parcel.price > 0 ? parcel.price.toString() : null,
         });
+        setActionStatus("");
       } else {
         setActionStatus("No parcel found for this coords hash.");
       }
@@ -438,6 +460,8 @@ export default function HomePage({
       let reason = "Failed";
       if (isReasonError(err)) {
         reason = err.reason;
+      } else if (err instanceof Error) {
+        reason = err.message;
       }
       setActionStatus("Error: " + reason);
     }
@@ -645,334 +669,345 @@ export default function HomePage({
         ))}
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        {/* Left: Table & Search */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
-            <div className="relative">
-              <h2 className="text-xl font-semibold text-black mb-4">
-                Search Parcel by Coordinates Hash
-              </h2>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  placeholder="Enter coords hash (0x...)"
-                  value={coordsSearch}
-                  onChange={(e) => setCoordsSearch(e.target.value)}
-                  className="w-full bg-white border-2 border-black rounded-2xl shadow-sm p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                />
-                <button
-                  onClick={handleCoordsSearch}
-                  className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
-                >
-                  Search
-                  <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
-                </button>
-              </div>
-              {coordsSearchResult && (
-                <div className="mt-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-3">
-                  <span className="font-mono text-indigo-600">
-                    ID: {coordsSearchResult.id}
-                  </span>
-                  <span className="mx-2 text-gray-400">|</span>
-                  <span className="font-mono text-blue-600">
-                    Owner: {formatAddress(coordsSearchResult.owner)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
-            <div className="relative">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-2xl font-semibold text-black">Parcels</h2>
-
-                {/* All / Mine filter */}
-                <div className="inline-flex items-center rounded-full border border-black bg-white p-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowMineOnly(false)}
-                    className={`px-3 py-1.5 text-sm rounded-full transition ${
-                      showMineOnly ? "text-black" : "bg-black text-white"
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowMineOnly(true)}
-                    className={`px-3 py-1.5 text-sm rounded-full transition ${
-                      showMineOnly ? "bg-black text-white" : "text-black"
-                    }`}
-                  >
-                    Mine
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-zinc-200">
-                  <thead>
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
-                        ID
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
-                        Owner
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
-                        Coords Hash
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200">
-                    {isParcelsLoading ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="text-center py-4 text-gray-500"
-                        >
-                          Loading parcels...
-                        </td>
-                      </tr>
-                    ) : (showMineOnly
-                        ? parcels.filter(
-                            (p) =>
-                              p.owner?.toLowerCase() === account?.toLowerCase()
-                          )
-                        : parcels
-                      ).length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="text-center py-4 text-gray-500"
-                        >
-                          {showMineOnly
-                            ? "You don’t own any parcels yet."
-                            : "No parcels registered yet."}
-                        </td>
-                      </tr>
-                    ) : (
-                      (showMineOnly
-                        ? parcels.filter(
-                            (p) =>
-                              p.owner?.toLowerCase() === account?.toLowerCase()
-                          )
-                        : parcels
-                      ).map((p) => (
-                        <tr
-                          key={p.id}
-                          className="hover:bg-zinc-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedParcel(p)}
-                        >
-                          <td className="px-3 py-2 text-sm text-indigo-600 font-mono">
-                            {p.id}
-                          </td>
-                          <td className="px-3 py-2 text-sm font-mono text-blue-600">
-                            {formatAddress(p.owner)}
-                          </td>
-                          <td className="px-3 py-2 text-xs font-mono text-gray-700 truncate max-w-[120px]">
-                            {p.coordsHash}
-                          </td>
-                          <td className="px-3 py-2 text-sm">
-                            {p.forSale ? (
-                              <span className="text-green-600 font-semibold">
-                                On Sale ({p.price} ETH)
-                              </span>
-                            ) : (
-                              <span className="text-gray-500">
-                                Not for Sale
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Chain blocks */}
-          {/* <BlockVisualizer blockNumbers={relevantBlockNumbers} /> */}
+      {/* Main content tabs */}
+      <div className="mt-6">
+        <div className="bg-white rounded-3xl border border-zinc-200 p-1 inline-flex gap-1">
+          {[
+            { id: "parcels", label: "Parcels" },
+            { id: "register", label: "Register" },
+            { id: "transfer", label: "Transfer" },
+            { id: "search", label: "Search" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`px-4 py-2 rounded-2xl text-sm font-medium transition ${
+                activeTab === t.id ? "bg-black text-white" : "text-gray-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {/* Right: Actions */}
-        <div className="space-y-6">
-          {/* Register */}
-          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
-            <div className="relative">
-              <h2 className="text-xl font-semibold text-black">
-                Register New Parcel
-              </h2>
-              <form onSubmit={handleRegister} className="space-y-4 mt-4">
-                <div>
-                  <label
-                    htmlFor="owner"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Owner Address
-                  </label>
-                  <input
-                    type="text"
-                    id="owner"
-                    value={ownerAddress}
-                    onChange={(e) => setOwnerAddress(e.target.value)}
-                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                    required
-                  />
+        <div className="mt-6">
+          {activeTab === "parcels" && (
+            <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+              <div className="relative">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-2xl font-semibold text-black">Parcels</h2>
+                  <div className="inline-flex items-center rounded-full border border-black bg-white p-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowMineOnly(false)}
+                      className={`px-3 py-1.5 text-sm rounded-full transition ${
+                        showMineOnly ? "text-black" : "bg-black text-white"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowMineOnly(true)}
+                      className={`px-3 py-1.5 text-sm rounded-full transition ${
+                        showMineOnly ? "bg-black text-white" : "text-black"
+                      }`}
+                    >
+                      Mine
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label
-                    htmlFor="coords"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Coordinates
-                  </label>
-                  <input
-                    type="text"
-                    id="coords"
-                    value={coordinates}
-                    onChange={(e) => setCoordinates(e.target.value)}
-                    placeholder="e.g., 40.7128,-74.0060"
-                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                    required
-                  />
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-zinc-200">
+                    <thead>
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                          ID
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                          Owner
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                          Coords Hash
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200">
+                      {isParcelsLoading ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="text-center py-4 text-gray-500"
+                          >
+                            Loading parcels...
+                          </td>
+                        </tr>
+                      ) : (showMineOnly
+                          ? parcels.filter(
+                              (p) =>
+                                p.owner?.toLowerCase() ===
+                                account?.toLowerCase()
+                            )
+                          : parcels
+                        ).length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="text-center py-4 text-gray-500"
+                          >
+                            {showMineOnly
+                              ? "You don’t own any parcels yet."
+                              : "No parcels registered yet."}
+                          </td>
+                        </tr>
+                      ) : (
+                        (showMineOnly
+                          ? parcels.filter(
+                              (p) =>
+                                p.owner?.toLowerCase() ===
+                                account?.toLowerCase()
+                            )
+                          : parcels
+                        ).map((p) => (
+                          <tr
+                            key={p.id}
+                            className="hover:bg-zinc-50 cursor-pointer transition-colors"
+                            onClick={() => setSelectedParcel(p)}
+                          >
+                            <td className="px-3 py-2 text-sm text-indigo-600 font-mono">
+                              {p.id}
+                            </td>
+                            <td className="px-3 py-2 text-sm font-mono text-blue-600">
+                              {formatAddress(p.owner)}
+                            </td>
+                            <td className="px-3 py-2 text-xs font-mono text-gray-700 truncate max-w-[120px]">
+                              {p.coordsHash}
+                            </td>
+                            <td className="px-3 py-2 text-sm">
+                              {p.forSale ? (
+                                <span className="text-green-600 font-semibold">
+                                  On Sale ({p.price} ETH)
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">
+                                  Not for Sale
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "register" && (
+            <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+              <div className="relative">
+                <h2 className="text-xl font-semibold text-black">
+                  Register New Parcel
+                </h2>
+                <form onSubmit={handleRegister} className="space-y-4 mt-4">
+                  <div>
+                    <label
+                      htmlFor="owner"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Owner Address
+                    </label>
+                    <input
+                      type="text"
+                      id="owner"
+                      value={ownerAddress}
+                      onChange={(e) => setOwnerAddress(e.target.value)}
+                      className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="coords"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Coordinates
+                    </label>
+                    <input
+                      type="text"
+                      id="coords"
+                      value={coordinates}
+                      onChange={(e) => setCoordinates(e.target.value)}
+                      placeholder="e.g., 40.7128,-74.0060"
+                      className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="file"
+                      onChange={(e) =>
+                        e.target.files && setSelectedFileEdit(e.target.files[0])
+                      }
+                      className="text-black bg-white border-2 border-black rounded-2xl px-4 py-2 focus:outline-none focus:ring-0 file:mr-3 file:px-3 file:py-1.5 file:rounded-xl file:border-0 file:bg-gray-100 file:text-gray-800 hover:file:bg-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleFileUploadEdit}
+                      className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-white px-4 py-2 text-base font-medium text-black transition-all hover:-translate-y-0.5 hover:bg-gray-50 active:translate-y-0"
+                    >
+                      {isUploading ? "Uploading..." : "Upload to IPFS"}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="metadata"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Metadata URI (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      id="metadata"
+                      value={metadataEdit}
+                      onChange={(e) => setMetadataURI(e.target.value)}
+                      className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="area"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Area (sqm)
+                    </label>
+                    <input
+                      type="number"
+                      id="area"
+                      value={area}
+                      onChange={(e) => setArea(e.target.value)}
+                      className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isRegistering}
+                    className="relative w-full inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0 disabled:opacity-50"
+                  >
+                    {isRegistering ? "Registering..." : "Register Parcel"}
+                  </button>
+                  {registerTxStatus && (
+                    <p className="text-sm text-center text-gray-700">
+                      {registerTxStatus}
+                    </p>
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "transfer" && (
+            <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+              <div className="relative">
+                <h2 className="text-xl font-semibold text-black">
+                  Transfer Parcel
+                </h2>
+                <form onSubmit={handleTransfer} className="space-y-4 mt-4">
+                  <div>
+                    <label
+                      htmlFor="transferId"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Parcel ID
+                    </label>
+                    <input
+                      type="number"
+                      id="transferId"
+                      value={transferParcelId}
+                      onChange={(e) => setTransferParcelId(e.target.value)}
+                      className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="transferTo"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Recipient Address
+                    </label>
+                    <input
+                      type="text"
+                      id="transferTo"
+                      value={transferToAddress}
+                      onChange={(e) => setTransferToAddress(e.target.value)}
+                      className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isTransferring}
+                    className="relative w-full inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0 disabled:opacity-50"
+                  >
+                    {isTransferring ? "Transferring..." : "Transfer Ownership"}
+                  </button>
+                  {transferTxStatus && (
+                    <p className="text-sm text-center text-gray-700">
+                      {transferTxStatus}
+                    </p>
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "search" && (
+            <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
+              <div className="relative">
+                <h2 className="text-xl font-semibold text-black mb-4">
+                  Search Parcel by Coordinates Hash
+                </h2>
                 <div className="flex gap-2 items-center">
                   <input
-                    type="file"
-                    onChange={(e) =>
-                      e.target.files && setSelectedFileEdit(e.target.files[0])
-                    }
-                    className="text-black bg-white border-2 border-black rounded-2xl px-4 py-2
-               focus:outline-none focus:ring-0
-               file:mr-3 file:px-3 file:py-1.5 file:rounded-xl file:border-0
-               file:bg-gray-100 file:text-gray-800 hover:file:bg-gray-200"
+                    type="text"
+                    placeholder="Enter coords (e.g., 40.7128,-74.0060) or coords hash (0x...)"
+                    value={coordsSearch}
+                    onChange={(e) => setCoordsSearch(e.target.value)}
+                    className="w-full bg-white border-2 border-black rounded-2xl shadow-sm p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
                   />
                   <button
-                    type="button"
-                    onClick={handleFileUploadEdit}
-                    className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-white px-4 py-2 text-base font-medium text-black transition-all hover:-translate-y-0.5 hover:bg-gray-50 active:translate-y-0"
+                    onClick={handleCoordsSearch}
+                    className="relative inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0"
                   >
-                    {isUploading ? "Uploading..." : "Upload to IPFS"}
-                    <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(0,0,0,0.08),transparent_60%)]" />
+                    Search
                   </button>
                 </div>
-
-                <div>
-                  <label
-                    htmlFor="metadata"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Metadata URI (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    id="metadata"
-                    value={metadataEdit}
-                    onChange={(e) => setMetadataURI(e.target.value)}
-                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="area"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Area (sqm)
-                  </label>
-                  <input
-                    type="number"
-                    id="area"
-                    value={area}
-                    onChange={(e) => setArea(e.target.value)}
-                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isRegistering}
-                  className="relative w-full inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0 disabled:opacity-50"
-                >
-                  {isRegistering ? "Registering..." : "Register Parcel"}
-                  <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
-                </button>
-                {registerTxStatus && (
-                  <p className="text-sm text-center text-gray-700">
-                    {registerTxStatus}
-                  </p>
+                {coordsSearchResult && (
+                  <div className="mt-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-3">
+                    <span className="font-mono text-indigo-600">
+                      ID: {coordsSearchResult.id}
+                    </span>
+                    <span className="mx-2 text-gray-400">|</span>
+                    <span className="font-mono text-blue-600">
+                      Owner: {formatAddress(coordsSearchResult.owner)}
+                    </span>
+                  </div>
                 )}
-              </form>
+              </div>
             </div>
-          </div>
-
-          {/* Transfer */}
-          <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="absolute inset-0 rounded-3xl pointer-events-none [mask-image:linear-gradient(black,transparent)] bg-gradient-to-b from-black/5 to-transparent" />
-            <div className="relative">
-              <h2 className="text-xl font-semibold text-black">
-                Transfer Parcel
-              </h2>
-              <form onSubmit={handleTransfer} className="space-y-4 mt-4">
-                <div>
-                  <label
-                    htmlFor="transferId"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Parcel ID
-                  </label>
-                  <input
-                    type="number"
-                    id="transferId"
-                    value={transferParcelId}
-                    onChange={(e) => setTransferParcelId(e.target.value)}
-                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                    required
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="transferTo"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Recipient Address
-                  </label>
-                  <input
-                    type="text"
-                    id="transferTo"
-                    value={transferToAddress}
-                    onChange={(e) => setTransferToAddress(e.target.value)}
-                    className="mt-1 w-full bg-white border-2 border-black rounded-2xl p-2 text-black focus:ring-2 focus:ring-black focus:border-black"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isTransferring}
-                  className="relative w-full inline-flex items-center justify-center rounded-2xl border-2 border-black bg-black px-4 py-2 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 active:translate-y-0 disabled:opacity-50"
-                >
-                  {isTransferring ? "Transferring..." : "Transfer Ownership"}
-                  <span className="pointer-events-none absolute inset-0 rounded-2xl [mask-image:linear-gradient(to_bottom,rgba(255,255,255,0.25),transparent_60%)]" />
-                </button>
-                {transferTxStatus && (
-                  <p className="text-sm text-center text-gray-700">
-                    {transferTxStatus}
-                  </p>
-                )}
-              </form>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
