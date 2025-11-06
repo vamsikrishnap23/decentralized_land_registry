@@ -54,6 +54,11 @@ export default function HomePage({
   initialAccount,
   onDisconnect,
 }: HomePageProps) {
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = "BlockTerritory";
+    }
+  }, []);
   // Wallet state
   const [account, setAccount] = useState<string>(initialAccount);
   const [balance, setBalance] = useState<string | null>(null);
@@ -602,7 +607,15 @@ export default function HomePage({
   return (
     <div className="w-full max-w-7xl mx-auto py-8 px-4 lg:px-0">
       {/* Top Navigation / Account Bar */}
-      <div className="w-full flex justify-end items-center p-4">
+      <div className="w-full flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl font-extrabold tracking-tight text-black">
+            Block<span className="text-indigo-600">Territory</span>
+          </div>
+          <div className="text-sm text-gray-500">
+            Decentralized Land Registry
+          </div>
+        </div>
         <div className="flex items-center gap-4 bg-white border border-black rounded-full px-4 py-2 shadow-sm">
           <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-sm font-bold text-white">
             {account?.substring(2, 6).toUpperCase()}

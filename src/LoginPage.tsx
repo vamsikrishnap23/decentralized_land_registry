@@ -43,6 +43,10 @@ export default function LoginPage({ onLogin, heroImageUrl }: LoginPageProps) {
     setHasEthereum(!!exists);
   }, []);
 
+  useEffect(() => {
+    if (typeof document !== "undefined") document.title = "BlockTerritory";
+  }, []);
+
   const connectWallet = async () => {
     if (!hasEthereum) {
       setError("MetaMask is not installed");
@@ -78,7 +82,7 @@ export default function LoginPage({ onLogin, heroImageUrl }: LoginPageProps) {
 
   return (
     <div
-      className={`min-h-screen ${bgClasses} antialiased text-zinc-900 dark:text-zinc-100`}
+      className={`min-h-screen ${bgClasses} antialiased text-zinc-900 dark:text-zinc-100 font-sans`}
     >
       {/* Decorative grid */}
       <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(to_right,#000_1px,transparent_1px),linear-gradient(to_bottom,#000_1px,transparent_1px)] [background-size:48px_48px] dark:opacity-[0.08]" />
@@ -108,7 +112,19 @@ export default function LoginPage({ onLogin, heroImageUrl }: LoginPageProps) {
           className="flex w-full items-center justify-center lg:w-[45%]"
         >
           <Card className="w-full max-w-md p-8 md:p-10">
-            {/* Badge */}
+            {/* App Branding - match HomePage font and styling */}
+            <div className="mb-6">
+              <div className="flex items-center gap-3">
+                <div className="text-2xl font-extrabold tracking-tight text-black">
+                  Block<span className="text-indigo-600">Territory</span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  Decentralized Land Registry
+                </div>
+              </div>
+            </div>
+
+            {/* Keep the badge below */}
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-200/60 bg-white/70 px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-zinc-200">
               <ShieldCheck className="h-4 w-4" />
               <span>Secure Web3 Access</span>
