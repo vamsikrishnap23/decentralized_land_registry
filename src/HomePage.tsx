@@ -3,6 +3,8 @@ import { contractAddress, contractABI } from "./lib/contractDetails";
 import BlockVisualizer from "./BlockVisualizer";
 import { formatAddress } from "./lib/utils";
 import { uploadToIPFS } from "./utils/ipfs";
+import Marketplace from "./MarketPlace";
+import ParcelMetadataForm from "./ParcelMetadataForm";
 
 // --- Ethers.js Reference ---
 import {
@@ -674,6 +676,7 @@ export default function HomePage({
         <div className="bg-white rounded-3xl border border-zinc-200 p-1 inline-flex gap-1">
           {[
             { id: "parcels", label: "Parcels" },
+            { id: "market", label: "Marketplace" },
             { id: "register", label: "Register" },
             { id: "transfer", label: "Transfer" },
             { id: "search", label: "Search" },
@@ -808,6 +811,14 @@ export default function HomePage({
               </div>
             </div>
           )}
+          {activeTab === "market" && (
+            <Marketplace
+              parcels={parcels}
+              account={account}
+              isLoading={isParcelsLoading}
+              onBuy={handleBuyParcel}
+            />
+          )}
 
           {activeTab === "register" && (
             <div className="relative rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -816,6 +827,13 @@ export default function HomePage({
                 <h2 className="text-xl font-semibold text-black">
                   Register New Parcel
                 </h2>
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-black mb-2">
+                    Create Metadata (image + coords)
+                  </h3>
+                  <ParcelMetadataForm onReady={(url) => setMetadataURI(url)} />
+                </div>
+
                 <form onSubmit={handleRegister} className="space-y-4 mt-4">
                   <div>
                     <label
